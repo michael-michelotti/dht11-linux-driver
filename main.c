@@ -1,9 +1,13 @@
 #include <linux/module.h>
+#include <linux/fs.h>
+
+
+dev_t dev_number;
 
 
 static int dht11_init(void)
 {
-    pr_info("Hello world\n");
+    alloc_chrdev_region(&dev_number, 0, 1, "dct11");
     return 0;
 }
 
