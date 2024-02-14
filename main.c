@@ -1,13 +1,15 @@
 #include <linux/module.h>
 
+
 static int dht11_init(void)
 {
-
+    pr_info("Hello world\n");
+    return 0;
 }
 
 static void dht11_deinit(void)
 {
-
+    pr_info("Goodbye world\n");
 }
 
 module_init(dht11_init);
