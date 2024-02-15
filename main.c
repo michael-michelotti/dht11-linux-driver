@@ -3,10 +3,58 @@
 #include <linux/fs.h>
 #include <linux/kdev_t.h>
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
+#include <linux/completion.h>
+#include <linux/mutex.h>
 
 
 dev_t dev_number;
 struct cdev dht11_cdev;
+
+struct dht11_private_data
+{
+    struct device *dev;
+    struct gpio_desc *gpiod;
+    int irq;
+    struct completion completion;
+    struct mutex lock;
+    /* struct s64 timestamp; */
+    int temperature;
+    int humidity;
+    int num_edges;
+
+};
+
+static int temperature_show(struct device *dev, struct device_attribute *attr,char *buf)
+{
+    return 0;
+}
+
+static int humidity_show(struct device *dev, struct device_attribute *attr,char *buf)
+{
+    return 0;
+}
+
+DEVICE_ATTR_RO(temperature);
+DEVICE_ATTR_RO(humidity);
+
+static struct attribute *dht11_attrs[] =
+{
+    &dev_attr_temperature.attr,
+    &dev_attr_humidity.attr,
+    NULL
+};
+
+static struct attribute_group dht11_attr_group = 
+{
+    .attrs = dht11_attrs
+};
+
+static const struct attribute_group *dht11_attr_groups[] = 
+{
+    &dht11_attr_group,
+    NULL
+};
 
 static int dht11_open(struct inode *inode, struct file *filep)
 {
@@ -49,8 +97,8 @@ static int dht11_init(void)
     dht11_cdev.owner = THIS_MODULE;
     cdev_add(&dht11_cdev, dev_number, 1);
 
-    // class_create API was updated in kernel version >= 6.4 to have only name, no owner argument.
-    // this code will have to be different on host vs. target!!! 
+    /* class_create API was updated in kernel version >= 6.4 to have only name, no owner argument.
+    this code will have to be different on host vs. target!!! */
     class_dht11 = class_create("dht11_class");
     dev_dht11 = device_create(class_dht11, NULL, dev_number, NULL, "dht11");
 
@@ -60,7 +108,11 @@ static int dht11_init(void)
 
 static void dht11_deinit(void)
 {
-    pr_info("Goodbye world\n");
+    device_destroy(class_dht11, dev_number);
+    class_destroy(class_dht11);
+    cdev_del(&dht11_cdev);
+    unregister_chrdev_region(dev_number, 1);
+    pr_info("DHT11 module unloaded.");
 }
 
 module_init(dht11_init);
