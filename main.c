@@ -16,22 +16,22 @@ dev_t dev_number;
 struct cdev dht11_cdev;
 
 #define DRIVER_NAME	"dht11"
-#define DHT11_DATA_VALID_TIME	2000000000  /* 2s in ns */
-#define DHT11_EDGES_PREAMBLE 2
-#define DHT11_BITS_PER_READ 40
+#define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
+#define DHT11_EDGES_PREAMBLE            2
+#define DHT11_BITS_PER_READ             40
 /*
  * Note that when reading the sensor actually 84 edges are detected, but
  * since the last edge is not significant, we only store 83:
  */
 #define DHT11_EDGES_PER_READ (2 * DHT11_BITS_PER_READ + \
-			      DHT11_EDGES_PREAMBLE + 1)
+                  DHT11_EDGES_PREAMBLE + 1)
 
-#define DHT11_START_TRANSMISSION_MIN	18000  /* us */
-#define DHT11_START_TRANSMISSION_MAX	20000  /* us */
-#define DHT11_MIN_TIMERES	            34000  /* ns */
-#define DHT11_THRESHOLD		            49000  /* ns */
-#define DHT11_AMBIG_LOW		            23000  /* ns */
-#define DHT11_AMBIG_HIGH	            30000  /* ns */
+#define DHT11_START_TRANSMISSION_MIN    18000  /* us */
+#define DHT11_START_TRANSMISSION_MAX    20000  /* us */
+#define DHT11_MIN_TIMERES               34000  /* ns */
+#define DHT11_THRESHOLD                 49000  /* ns */
+#define DHT11_AMBIG_LOW                 23000  /* ns */
+#define DHT11_AMBIG_HIGH                30000  /* ns */
 
 struct dht11_private_data
 {
@@ -56,54 +56,54 @@ struct dht11_drv_private_data drv_data;
 
 static unsigned char dht11_decode_byte(char *bits)
 {
-	unsigned char ret = 0;
-	int i;
+    unsigned char ret = 0;
+    int i;
 
-	for (i = 0; i < 8; ++i) 
+    for (i = 0; i < 8; ++i) 
     {
-		ret <<= 1;
-		if (bits[i])
-			++ret;
-	}
+        ret <<= 1;
+        if (bits[i])
+            ++ret;
+    }
 
-	return ret;
+    return ret;
 }
 
 static int dht11_decode(struct dht11_private_data *dht11, int offset)
 {
     int i, t;
-	char bits[DHT11_BITS_PER_READ];
-	unsigned char temp_int, temp_dec, hum_int, hum_dec, checksum;
+    char bits[DHT11_BITS_PER_READ];
+    unsigned char temp_int, temp_dec, hum_int, hum_dec, checksum;
 
-	for (i = 0; i < DHT11_BITS_PER_READ; i++) 
+    for (i = 0; i < DHT11_BITS_PER_READ; i++) 
     {
-		t = dht11->edges[offset + 2 * i + 2].ts -
-			dht11->edges[offset + 2 * i + 1].ts;
-		if (!dht11->edges[offset + 2 * i + 1].value) 
+        t = dht11->edges[offset + 2 * i + 2].ts -
+            dht11->edges[offset + 2 * i + 1].ts;
+        if (!dht11->edges[offset + 2 * i + 1].value) 
         {
-			dev_info(dht11->dev, "lost synchronisation at edge %d\n", offset + 2 * i + 1);
-			return -EIO;
-		}
-		bits[i] = t > DHT11_THRESHOLD;
-	}
+            dev_info(dht11->dev, "lost synchronisation at edge %d\n", offset + 2 * i + 1);
+            return -EIO;
+        }
+        bits[i] = t > DHT11_THRESHOLD;
+    }
 
-	hum_int = dht11_decode_byte(bits);
-	hum_dec = dht11_decode_byte(&bits[8]);
-	temp_int = dht11_decode_byte(&bits[16]);
-	temp_dec = dht11_decode_byte(&bits[24]);
-	checksum = dht11_decode_byte(&bits[32]);
+    hum_int = dht11_decode_byte(bits);
+    hum_dec = dht11_decode_byte(&bits[8]);
+    temp_int = dht11_decode_byte(&bits[16]);
+    temp_dec = dht11_decode_byte(&bits[24]);
+    checksum = dht11_decode_byte(&bits[32]);
 
-	if (((hum_int + hum_dec + temp_int + temp_dec) & 0xff) != checksum) 
+    if (((hum_int + hum_dec + temp_int + temp_dec) & 0xff) != checksum) 
     {
-		dev_info(dht11->dev, "invalid checksum\n");
-		return -EIO;
-	}
+        dev_info(dht11->dev, "invalid checksum\n");
+        return -EIO;
+    }
 
-	dht11->timestamp = ktime_get_boottime_ns();
-	dht11->temperature = temp_int * 1000;
-	dht11->humidity = hum_int * 1000;
+    dht11->timestamp = ktime_get_boottime_ns();
+    dht11->temperature = temp_int * 1000;
+    dht11->humidity = hum_int * 1000;
 
-	return 0;
+    return 0;
 }
 
 static irqreturn_t dht11_handle_irq(int irq, void *data)
@@ -175,12 +175,12 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
     offset = DHT11_EDGES_PREAMBLE + dht11->num_edges - DHT11_EDGES_PER_READ;
     for (;offset >= 0; offset--) 
     {
-	    ret = dht11_decode(dht11, offset);
-		if (!ret)
+        ret = dht11_decode(dht11, offset);
+        if (!ret)
         {
-			break;
+            break;
         }
-	}
+    }
 
 err:
     dht11->num_edges = -1;
