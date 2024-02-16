@@ -12,8 +12,6 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 
-dev_t dev_number;
-struct cdev dht11_cdev;
 
 #define DRIVER_NAME	"dht11"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
@@ -303,21 +301,8 @@ struct platform_driver dht11_sysfs_platform_driver =
     }
 };
 
-static int dht11_init(void)
-{
-    drv_data.class_dht11 = class_create("dht11");
-    platform_driver_register(&dht11_sysfs_platform_driver);
-    return 0;
-}
 
-static void dht11_deinit(void)
-{
-    platform_driver_unregister(&dht11_sysfs_platform_driver);
-    class_destroy(drv_data.class_dht11);
-}
-
-module_init(dht11_init);
-module_exit(dht11_deinit);
+module_platform_driver(dht11_sysfs_platform_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Michael Michelotti <michael.michelotti4@gmail.com>");
