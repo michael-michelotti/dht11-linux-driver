@@ -11,7 +11,7 @@
 &am33xx_pinmux {
     p8_gpios: bone_p8_gpios {
         pinctrl-single,pins = <
-            AM33XX_PADCONF(AM335X_PIN_GPMC_ADVN_ALE,PIN_OUTPUT,MUX_MODE7)
+            AM33XX_PADCONF(AM335X_PIN_GPMC_ADVN_ALE, PIN_OUTPUT, MUX_MODE7)
         >;
     };
 };

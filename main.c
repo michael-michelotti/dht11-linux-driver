@@ -13,7 +13,7 @@
 #include <linux/interrupt.h>
 
 
-#define DRIVER_NAME	"dht11"
+#define DRIVER_NAME	"dht11-mm"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
 #define DHT11_EDGES_PREAMBLE            2
 #define DHT11_BITS_PER_READ             40
@@ -33,24 +33,17 @@
 
 struct dht11_private_data
 {
-    struct device *dev;
-    struct gpio_desc *gpiod;
-    int irq;
-    struct completion completion;
-    struct mutex lock;
-    s64 timestamp;
-    int temperature;
-    int humidity;
-    int num_edges;
-    struct { s64 ts; int value; } edges[DHT11_EDGES_PER_READ];
+    struct device                       *dev;
+    struct gpio_desc                    *gpiod;
+    int                                 irq;
+    struct completion                   completion;
+    struct mutex                        lock;
+    s64                                 timestamp;
+    int                                 temperature;
+    int                                 humidity;
+    int                                 num_edges;
+    struct { s64 ts; int value; }       edges[DHT11_EDGES_PER_READ];
 };
-
-struct dht11_drv_private_data
-{
-    struct class *class_dht11;    
-};
-
-struct dht11_drv_private_data drv_data;
 
 static unsigned char dht11_decode_byte(char *bits)
 {
@@ -128,55 +121,64 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
     int ret, timeres, offset;
 
     mutex_lock(&dht11->lock);
-    if (dht11->timestamp < ktime_get_boottime_ns())
+    if (dht11->timestamp + DHT11_DATA_VALID_TIME < ktime_get_boottime_ns())
     {
         timeres = ktime_get_resolution_ns(); 
         dev_info(dev, "current time resolution: %dns\n", timeres);
         if (timeres > DHT11_MIN_TIMERES)
         {
+            dev_err(dht11->dev, "time resolution %dns too low\n", timeres);
             ret = -EAGAIN;
             goto err;
         }
-    }
 
-    reinit_completion(&dht11->completion);
-    dht11->num_edges = 0;
-    ret = gpiod_direction_output(dht11->gpiod, 0);
-    if (ret)
-    {
-        goto err;
-    }
-
-    usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
-
-    ret = gpiod_direction_input(dht11->gpiod);
-    if (ret)
-    {
-        goto err;
-    }
-
-    ret = request_irq(dht11->irq, dht11_handle_irq, 
-                        IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, 
-                        dev->init_name, dev);
-    if (ret)
-    {
-        goto err;
-    }
-
-    ret = wait_for_completion_killable_timeout(&dht11->completion, HZ);
-    free_irq(dht11->irq, dev);
-    if (ret)
-    {
-        goto err;
-    }
-
-    offset = DHT11_EDGES_PREAMBLE + dht11->num_edges - DHT11_EDGES_PER_READ;
-    for (;offset >= 0; offset--) 
-    {
-        ret = dht11_decode(dht11, offset);
-        if (!ret)
+        reinit_completion(&dht11->completion);
+        dht11->num_edges = 0;
+        /* Start transmission - pull line low */
+        ret = gpiod_direction_output(dht11->gpiod, 0);
+        if (ret)
         {
-            break;
+            goto err;
+        }
+
+        usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
+
+        /* Start reading from DHT11 sensor via interrupts */
+        ret = gpiod_direction_input(dht11->gpiod);
+        if (ret)
+        {
+            goto err;
+        }
+
+        ret = request_irq(dht11->irq, dht11_handle_irq, 
+                            IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, 
+                            dev->init_name, dev);
+        if (ret)
+        {
+            goto err;
+        }
+
+        ret = wait_for_completion_killable_timeout(&dht11->completion, HZ);
+        free_irq(dht11->irq, dev);
+        if (ret == 0 && dht11->num_edges < DHT11_EDGES_PER_READ - 1)
+        {
+            dev_err(dev, "Only %d signal edges detected\n", dht11->num_edges);
+            ret = -ETIMEDOUT;
+        }
+
+        if (ret < 0)
+        {
+            goto err;
+        }
+
+        offset = DHT11_EDGES_PREAMBLE + dht11->num_edges - DHT11_EDGES_PER_READ;
+        for (;offset >= 0; offset--) 
+        {
+            ret = dht11_decode(dht11, offset);
+            if (!ret)
+            {
+                break;
+            }
         }
     }
 
@@ -186,6 +188,7 @@ err:
     return ret;
 }
 
+/****** SYSFS ATTRIBUTE FUNCTION IMPLEMENTATION *******/
 static ssize_t temperature_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     int ret;
@@ -214,6 +217,7 @@ static ssize_t humidity_show(struct device *dev, struct device_attribute *attr, 
     return sprintf(buf, "%d\n", dht11->humidity);
 }
 
+/****** SYSFS ATTRIBUTE DECLARATION *******/
 DEVICE_ATTR_RO(temperature);
 DEVICE_ATTR_RO(humidity);
 
@@ -281,6 +285,7 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
 
 static int dht11_sysfs_remove(struct platform_device *pdev)
 {
+    sysfs_remove_group(&pdev->dev.kobj, &dht11_attr_groups);
     return 0;
 }
 
@@ -291,16 +296,15 @@ static const struct of_device_id dht11_dt_ids[] =
 };
 MODULE_DEVICE_TABLE(of, dht11_dt_ids);
 
-struct platform_driver dht11_sysfs_platform_driver = 
+static struct platform_driver dht11_sysfs_platform_driver = 
 {
     .probe = dht11_sysfs_probe,
     .remove = dht11_sysfs_remove,
     .driver = {
-        .name = "dht11",
+        .name = DRIVER_NAME,
         .of_match_table = dht11_dt_ids,
     }
 };
-
 
 module_platform_driver(dht11_sysfs_platform_driver);
 
