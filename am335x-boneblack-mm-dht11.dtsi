@@ -4,14 +4,14 @@
         pictrl-names = "default";
         pinctrl-0 = <&p8_gpios>;
         status = "okay";
-        data-gpios = <&gpio2 2  GPIO_ACTIVE_LOW>;
+        data-gpios = <&gpio2 7  GPIO_ACTIVE_HIGH>;
     };
 }
 
 &am33xx_pinmux {
     p8_gpios: bone_p8_gpios {
         pinctrl-single,pins = <
-            AM33XX_PADCONF(AM335X_PIN_GPMC_ADVN_ALE, PIN_OUTPUT, MUX_MODE7)
+            AM33XX_PADCONF(AM335X_PIN_LCD_DATA1, PIN_OUTPUT, MUX_MODE7)
         >;
     };
 };

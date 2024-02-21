@@ -233,12 +233,6 @@ static struct attribute_group dht11_attr_group =
     .attrs = dht11_attrs
 };
 
-static const struct attribute_group *dht11_attr_groups[] = 
-{
-    &dht11_attr_group,
-    NULL
-};
-
 static int dht11_sysfs_probe(struct platform_device *pdev)
 {
     struct device *dev = &pdev->dev;
@@ -272,8 +266,7 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
     dht11->timestamp = ktime_get_boottime_ns();
     dht11->num_edges = -1;
 
-
-    ret = sysfs_create_group(&dev->kobj, dht11_attr_groups);
+    ret = sysfs_create_group(&dev->kobj, &dht11_attr_group);
     if (ret)
     {
         dev_err(dev, "Failed to create sysfs group\n");
@@ -285,7 +278,7 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
 
 static int dht11_sysfs_remove(struct platform_device *pdev)
 {
-    sysfs_remove_group(&pdev->dev.kobj, &dht11_attr_groups);
+    sysfs_remove_group(&pdev->dev.kobj, &dht11_attr_group);
     return 0;
 }
 
