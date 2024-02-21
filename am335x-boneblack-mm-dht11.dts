@@ -1,0 +1,31 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+
+    fragment@0 {
+        target=<&am33xx_pinmux>;
+        __overlay__ {
+            p8_gpios: bone_p8_gpios {
+                pinctrl-single,pins = <
+                    AM33XX_PADCONF(AM335X_PIN_LCD_DATA1, PIN_OUTPUT, MUX_MODE7)
+                >;
+            };
+        }
+
+
+    }
+
+    fragment@1 {
+        target-path="/";
+        __overlay__ {
+            dht11 {
+                compatible = "michelotti,dht11", "dht11";
+                pictrl-names = "default";
+                pinctrl-0 = <&p8_gpios>;
+                status = "okay";
+                data-gpios = <&gpio2 7  GPIO_ACTIVE_HIGH>;
+            };
+        }
+    }
+}
