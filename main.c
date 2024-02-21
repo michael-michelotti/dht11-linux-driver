@@ -13,6 +13,7 @@
 #include <linux/interrupt.h>
 
 
+
 #define DRIVER_NAME	"dht11-mm"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
 #define DHT11_EDGES_PREAMBLE            2
@@ -246,7 +247,7 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
         return -ENOMEM;
     }
 
-    dht11->gpiod = devm_gpiod_get(dev, "data", GPIOD_IN);
+    dht11->gpiod = devm_gpiod_get(dev, "data", GPIOD_OUT_HIGH_OPEN_DRAIN);
     if (IS_ERR(dht11->gpiod))
     {
         return PTR_ERR(dht11->gpiod);
