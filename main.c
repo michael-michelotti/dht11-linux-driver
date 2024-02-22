@@ -14,7 +14,7 @@
 
 
 
-#define DRIVER_NAME	"dht11-mm"
+#define DRIVER_NAME                    "dht11-mm"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
 #define DHT11_EDGES_PREAMBLE            2
 #define DHT11_BITS_PER_READ             40
@@ -25,8 +25,8 @@
 #define DHT11_EDGES_PER_READ (2 * DHT11_BITS_PER_READ + \
                   DHT11_EDGES_PREAMBLE + 1)
 
-#define DHT11_START_TRANSMISSION_MIN    18000  /* us */
-#define DHT11_START_TRANSMISSION_MAX    20000  /* us */
+#define DHT11_START_TRANSMISSION_MIN    1800000  /* us */
+#define DHT11_START_TRANSMISSION_MAX    2000000  /* us */
 #define DHT11_MIN_TIMERES               34000  /* ns */
 #define DHT11_THRESHOLD                 49000  /* ns */
 #define DHT11_AMBIG_LOW                 23000  /* ns */
@@ -136,13 +136,21 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
         reinit_completion(&dht11->completion);
         dht11->num_edges = 0;
         /* Start transmission - pull line low */
+        dev_err(dht11->dev, "GPIO is active low: %d\n", gpiod_is_active_low(dht11->gpiod));
+        dev_err(dht11->dev, "have GPIO %d\n", desc_to_gpio(dht11->gpiod));
+        dev_err(dht11->dev, "current gpio direction: %d\n", gpiod_get_direction(dht11->gpiod));
+        dev_err(dht11->dev, "current gpio value: %d\n", gpiod_get_value(dht11->gpiod));
         ret = gpiod_direction_output(dht11->gpiod, 0);
         if (ret)
         {
             goto err;
         }
+        dev_err(dht11->dev, "return val: %d. new gpio direction: %d\n", ret, gpiod_get_direction(dht11->gpiod));
+        dev_err(dht11->dev, "new gpio value: %d\n", gpiod_get_value(dht11->gpiod));
 
+        dev_err(dht11->dev, "sleep start\n");
         usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
+        dev_err(dht11->dev, "sleep end\n");
 
         /* Start reading from DHT11 sensor via interrupts */
         ret = gpiod_direction_input(dht11->gpiod);
@@ -247,7 +255,7 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
         return -ENOMEM;
     }
 
-    dht11->gpiod = devm_gpiod_get(dev, "data", GPIOD_OUT_HIGH_OPEN_DRAIN);
+    dht11->gpiod = devm_gpiod_get(dev, "data", GPIOD_IN);
     if (IS_ERR(dht11->gpiod))
     {
         return PTR_ERR(dht11->gpiod);

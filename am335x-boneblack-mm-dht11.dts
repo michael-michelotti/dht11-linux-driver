@@ -20,7 +20,7 @@
                 pinctrl-names = "default";
                 pinctrl-0 = <&dht11_p8_gpios>;
                 status = "okay";
-                data-gpios = <&gpio2 24 1>;
+                data-gpios = <&gpio2 24 0>;
             };
         };
     };
