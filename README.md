@@ -1,4 +1,10 @@
 # dht11-linux-driver
+A Linux driver for a BeagleBone Black to read from a DHT11 humidity sensor.
+
+<div align="center">
+  <img src="https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_setup_image.JPG" alt="BeagleBone Black and DHT11 project setup" width="500"/>
+</div>
+
 ## Overview
 This is a demonstration Linux device driver for the [DHT11 humidity and temperature sensor](https://www.adafruit.com/product/386). 
 
