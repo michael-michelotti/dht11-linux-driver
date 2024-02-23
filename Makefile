@@ -1,4 +1,4 @@
-obj-m := main.o
+obj-m := dht11-mm.o
 ARCH=arm
 CROSS_COMPILE=arm-linux-gnueabihf-
 TARGET_KERN_DIR=/home/michael/linux-5.10.168-ti-r72

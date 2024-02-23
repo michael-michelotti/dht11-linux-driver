@@ -151,6 +151,12 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
         dev_err(dht11->dev, "sleep start\n");
         usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
         dev_err(dht11->dev, "sleep end\n");
+        dev_err(dht11->dev, "current gpio value: %d\n", gpiod_get_value(dht11->gpiod));
+        ret = gpiod_direction_output(dht11->gpiod, 1);
+        dev_err(dht11->dev, "return val: %d. new gpio value: %d\n", ret, gpiod_get_value(dht11->gpiod));
+        dev_err(dht11->dev, "sleep start\n");
+        usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
+        dev_err(dht11->dev, "sleep end\n");
 
         /* Start reading from DHT11 sensor via interrupts */
         ret = gpiod_direction_input(dht11->gpiod);

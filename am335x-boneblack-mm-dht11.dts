@@ -2,25 +2,33 @@
 /plugin/;
 
 / {
-
     fragment@0 {
-        target=<&am33xx_pinmux>;
+        target=<&ocp>;
         __overlay__ {
-            dht11_p8_gpios: bone_p8_gpios {
-                pinctrl-single,pins = <(0x68) (0x8) (0x7)>;
+            P8_12_pinmux {
+                status = "disabled";
             };
         };
     };
 
     fragment@1 {
+        target=<&am33xx_pinmux>;
+        __overlay__ {
+            p8_08_dht11: pinmux_p8_08_dht11 {
+                pinctrl-single,pins = <0x30 0x7>;
+            };
+        };
+    };
+
+    fragment@2 {
         target-path="/";
         __overlay__ {
             dht11 {
                 compatible = "michelotti,dht11", "dht11";
                 pinctrl-names = "default";
-                pinctrl-0 = <&dht11_p8_gpios>;
+                pinctrl-0 = <&p8_08_dht11>;
                 status = "okay";
-                data-gpios = <&gpio2 24 0>;
+                data-gpios = <&gpio1 12 0>;
             };
         };
     };
