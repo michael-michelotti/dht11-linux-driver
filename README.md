@@ -47,41 +47,44 @@ The BeagleBone Black was connected to the DHT11 sensor via a breadboard and jump
 - BBB image (AM335x 12.2 2023-10-07 4GB eMMC IoT Flasher)
 
 ### Installation
-__1. (Optional) Flash your BBB with the latest image__
+#### Hardware Configuration
+The hardware setup is pictured in the [dht11-linux-driver](#dht11-linux-driver) section. I will not enumerate every connection here, but here are the high level steps:
+Here is the BBB pinout diagram:
+![BeagleBone Black pinout diagram](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/readme_data/bbb_pinout_headers.png)
 
-The BBB comes with an OS pre-flashed to the onboard eMMC memory. However, this may not be the latest available image. You can download the latest image [here](https://www.beagleboard.org/distros/am335x-12-2-2023-10-07-4gb-emmc-iot-flasher) (12.2 4GB IoT was used for this demo) and flash it to a microSD card. Insert the microSD card into the BBB and apply power. The new image will be loaded to the eMMC automatically if you downloaded the "Flasher" version of the image. After completion, the board will power off. Remove the microSD card and apply power to boot.
+* The 5V rail (bottom of the pictured breadboard) must be powered from SYS_5V (P9_08)
+* The 3.3V rail (top) must be powered from VDD_3V3 (P9_04)
+* GPIO 67 (P8_08) must be connected to the 3.3V side of the level shifter
+* The data line of the DHT11 must be connected to the 5V side of the level shifter
+
+### Software Configuration
+__1. Flash your BBB with the latest image__
+
+The BBB comes with an OS pre-loaded to the onboard eMMC memory. However, this may not be the image that this driver was designed to run on. You can download the proper image [here](https://www.beagleboard.org/distros/am335x-12-2-2023-10-07-4gb-emmc-iot-flasher) (12.2 4GB IoT was used for this demo) and flash it to a microSD card. Insert the microSD card into the BBB and apply power. The new image will be loaded to the eMMC automatically if you downloaded the "Flasher" version of the image. After completion, the board will power off. Remove the microSD card and apply power to boot.
 
 __2. Download the source code__
 ```
 git clone git@github.com:michael-michelotti/dht11-linux-driver.git && cd dht11-linux-driver
 ```
-__3. Compile the device tree overlay (DTBO) and module kernel object (this should result in several files, including `am335x-boneblack-mm-dht11.dtbo` and `dht11-mm.ko` in your project directory)__
+
+__3. Configure the BBB__
+
+A couple things must happen before the BBB will interface with the DHT11 sensor.
+* The provided DTS must be built into a DTBO (device tree overlay binary), pushed to the BBB, and registered with the bootloader
+* The provided `dht11-mm.c` source code must be compiled into a kernel object `.ko`, pushed to the BBB, and reigstered with the kernel
+* The BBB must be rebooted
+
+All these steps are taken care of in the provided `Makefile`. You just need to run:
 ```
 make
 ```
-__4. Hook the BBB up to your host machine with the Mini USB to USB A cable__
+However, ensure that the BBB is plugged into your host machine. The `Makefile` will ask you for the password to the BBB several times. The password is `temppwd` by default.
 
-Wait for the BBB to boot, should take around 3 minutes.
-
-__5. Once the BBB has booted, secure copy your module and device tree overlay to the BBB__
-```
-scp am335x-boneblack-mm-dht11.dtbo debian@192.168.6.2:/home/debian
-scp dht11-mm.ko debian@192.168.6.2:/home/debian
-```
-__6. Insert the device tree overlay and reboot (login info is user: debian, password: temppwd)__
+__4. Wait for BBB to reboot. Log back in.__
 ```
 ssh debian@192.168.6.2
-chmod +x am335x-boneblack-mm-dht11.dtbo
-sudo chown root:root am335x-boneblack-mm-dht11.dtbo
-sudo mv am335x-boneblack-mm-dht11.dtbo /boot/dtbs/5.10.168-ti-r72/overlays/
-sudo reboot
 ```
-__7. Wait for BBB to reboot. Log back in and insert driver module__
-```
-ssh debian@192.168.6.2
-sudo insmod dht11-mm.ko
-```
-__8. Read from DHT11 sensor via sysfs interface!__
+__5. Read from DHT11 sensor via sysfs interface!__
 ```
 cd /sys/devices/platform/dht11
 cat humidity
@@ -93,19 +96,19 @@ Once you have completed the installation steps above, you need:
 2. SSH into the BBB.
 3. Interact with the sensor through sysfs at `/sys/devices/platform/dht11/<humidity/temperature>`
 
-### Hooking Up the Hardware
-Reserved.
 ### SSH into the BBB
-1. Plug the BBB into your host machine with your Mini USB to USB A wire.
-2. SSH into the BBB at `192.168.7.2`
+These steps assume you have already completed the [Hardware Configuration](#hardware-configuration) and [Software Configuration](#software-configuration) steps defined in this README.
+
+__1. Plug the BBB into your host machine with your Mini USB to USB A wire.__
+__2. SSH into the BBB at `192.168.7.2`__
 ```
 ssh debian@192.168.7.2
 ```
-3. Change directory to the DHT11 sysfs location:
+__3. Change directory to the DHT11 sysfs location:__
 ```
 cd /sys/devices/platform/dht11
 ```
-4. Request the temperature or humidity from the DHT11 sensor by reading the `temperature` or `humidity` file:
+__4. Request the temperature or humidity from the DHT11 sensor by reading the `temperature` or `humidity` file:__
 ```
 cat humidity
 cat temperature
