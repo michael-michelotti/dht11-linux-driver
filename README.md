@@ -2,7 +2,7 @@
 A Linux driver for a BeagleBone Black (BBB) to read from a DHT11 humidity sensor.
 
 <div align="center">
-  <img src="https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_setup_image.JPG" alt="BeagleBone Black and DHT11 project setup" width="500"/>
+  <img src="https://github.com/michael-michelotti/dht11-linux-driver/blob/main/bbb_dht11_setup_diagram.png" alt="BeagleBone Black and DHT11 project setup" width="700"/>
 </div>
 
 ## Overview
@@ -13,6 +13,15 @@ There already [exists a driver](https://github.com/torvalds/linux/blob/master/dr
 As a demonstration, I converted this driver into a platform device driver which you interface with through the [sysfs psuedo file system](https://docs.kernel.org/filesystems/sysfs.html). 
 
 I also converted the interrupt-based logic to polling-based logic, as the BeagleBone black runs a non-RTOS version of Linux, and was not servicing the DHT11 interrupts quickly enough. 
+
+### About The Sensor
+The sensor is a DHT11 humidity and temperature sensor. Here is the basic logic flow to read from it:
+1. Pull the bus line low (it must be pulled up by default) to signal the sensor to start transmitting data.
+2. DHT11 pulls line low for 80us, then high for 80us, this is the sensor's preamble.
+3. DHT11 begins data transmit. Bits are transmitted by pulling line low for 50us, then high for either 20us or 70us. 20us indicates a 0, 70us indicates a 1.
+
+When probed with a logic analyzer, the data transmission looks like this:
+![DHT11 logic analyzer probe](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_logic_analyzer_decoded.png)
 
 ## Built With
 This project was developed for a [BeagleBone Black](https://www.beagleboard.org/boards/beaglebone-black), which is a community-run development platform, similar to Raspberry Pi. The board features an [AM3358 CPU](https://www.ti.com/product/AM3358) by TI, which in turn features an ARM Cortex-A8 core. The BeagleBone Black offers two expansion headers for GPIO purposes. In this project, the 8th GPIO pin on header P8 interfaces with the single data line of the DHT11 sensor.
@@ -79,3 +88,30 @@ cat humidity
 cat temperature
 ```
 ## Usage
+Once you have completed the installation steps above, you need: 
+1. Hook up the hardware.
+2. SSH into the BBB.
+3. Interact with the sensor through sysfs at `/sys/devices/platform/dht11/<humidity/temperature>`
+
+### Hooking Up the Hardware
+Reserved.
+### SSH into the BBB
+1. Plug the BBB into your host machine with your Mini USB to USB A wire.
+2. SSH into the BBB at `192.168.7.2`
+```
+ssh debian@192.168.7.2
+```
+3. Change directory to the DHT11 sysfs location:
+```
+cd /sys/devices/platform/dht11
+```
+4. Request the temperature or humidity from the DHT11 sensor by reading the `temperature` or `humidity` file:
+```
+cat humidity
+cat temperature
+```
+Your output should look like this:
+
+![DHT11 demo usage](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_cat_temp_hum_usage.png)
+
+Note that the script is flaky because the read function can get preempted (non-RTOS Linux) and miss edges. You may have to try to read the file multiple times.
