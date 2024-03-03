@@ -2,7 +2,7 @@
 A Linux driver for a BeagleBone Black (BBB) to read from a DHT11 humidity sensor.
 
 <div align="center">
-  <img src="https://github.com/michael-michelotti/dht11-linux-driver/blob/main/bbb_dht11_setup_diagram.png" alt="BeagleBone Black and DHT11 project setup" width="700"/>
+  <img src="https://github.com/michael-michelotti/dht11-linux-driver/blob/main/readme_data/bbb_dht11_setup_diagram.png" alt="BeagleBone Black and DHT11 project setup" width="700"/>
 </div>
 
 ## Overview
@@ -21,7 +21,7 @@ The sensor is a DHT11 humidity and temperature sensor. Here is the basic logic f
 3. DHT11 begins data transmit. Bits are transmitted by pulling line low for 50us, then high for either 20us or 70us. 20us indicates a 0, 70us indicates a 1.
 
 When probed with a logic analyzer, the data transmission looks like this:
-![DHT11 logic analyzer probe](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_logic_analyzer_decoded.png)
+![DHT11 logic analyzer probe](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/readme_data/dht11_logic_analyzer_decoded.png)
 
 ## Built With
 This project was developed for a [BeagleBone Black](https://www.beagleboard.org/boards/beaglebone-black), which is a community-run development platform, similar to Raspberry Pi. The board features an [AM3358 CPU](https://www.ti.com/product/AM3358) by TI, which in turn features an ARM Cortex-A8 core. The BeagleBone Black offers two expansion headers for GPIO purposes. In this project, the 8th GPIO pin on header P8 interfaces with the single data line of the DHT11 sensor.
@@ -112,6 +112,6 @@ cat temperature
 ```
 Your output should look like this:
 
-![DHT11 demo usage](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/dht11_cat_temp_hum_usage.png)
+![DHT11 demo usage](https://github.com/michael-michelotti/dht11-linux-driver/blob/main/readme_data/dht11_cat_temp_hum_usage.png)
 
 Note that the script is flaky because the read function can get preempted (non-RTOS Linux) and miss edges. You may have to try to read the file multiple times.
