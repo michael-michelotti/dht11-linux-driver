@@ -5,6 +5,7 @@
     fragment@0 {
         target=<&ocp>;
         __overlay__ {
+            /* BBB overlay uses pinmux helper devices, must be disabled for our pin */
             P8_08_pinmux {
                 status = "disabled";
             };
@@ -15,6 +16,8 @@
         target=<&am33xx_pinmux>;
         __overlay__ {
             p8_08_dht11: pinmux_p8_08_dht11 {
+                /* Output of AM33XX_PADCONF macro in include/dt-bindings/pinctrl/omap.h */
+                /* AM33XX_PADCONF(AM335X_PIN_GPMC_OEN_REN, PIN_INPUT, MUX_MODE7) */
                 pinctrl-single,pins = <0x94 0x27>;
             };
         };
@@ -28,6 +31,7 @@
                 pinctrl-names = "default";
                 pinctrl-0 = <&p8_08_dht11>;
                 status = "okay";
+                /* 0 = GPIO_ACTIVE_HIGH */
                 data-gpios = <&gpio2 3 0>;
             };
         };
