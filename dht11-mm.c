@@ -1,14 +1,10 @@
-#include <linux/cdev.h>
-#include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/kdev_t.h>
 #include <linux/module.h>
 #include <linux/gpio/consumer.h>
 #include <linux/completion.h>
 #include <linux/mutex.h>
 #include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
-#include <linux/timekeeping.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 
@@ -16,7 +12,7 @@
 
 #define DRIVER_NAME                    "dht11-mm"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
-#define DHT11_EDGES_PREAMBLE            2
+#define DHT11_EDGES_PREAMBLE            3
 #define DHT11_BITS_PER_READ             40
 /*
  * Note that when reading the sensor actually 84 edges are detected, but
@@ -25,12 +21,13 @@
 #define DHT11_EDGES_PER_READ (2 * DHT11_BITS_PER_READ + \
                   DHT11_EDGES_PREAMBLE + 1)
 
-#define DHT11_START_TRANSMISSION_MIN    1800000  /* us */
-#define DHT11_START_TRANSMISSION_MAX    2000000  /* us */
+#define DHT11_START_TRANSMISSION_MIN    18000  /* us */
+#define DHT11_START_TRANSMISSION_MAX    20000  /* us */
 #define DHT11_MIN_TIMERES               34000  /* ns */
 #define DHT11_THRESHOLD                 49000  /* ns */
 #define DHT11_AMBIG_LOW                 23000  /* ns */
 #define DHT11_AMBIG_HIGH                30000  /* ns */
+#define DHT11_POLL_TIMEOUT              1000000000  /* ns */
 
 struct dht11_private_data
 {
@@ -41,7 +38,9 @@ struct dht11_private_data
     struct mutex                        lock;
     s64                                 timestamp;
     int                                 temperature;
+    int                                 temperature_dec;
     int                                 humidity;
+    int                                 humidity_dec;
     int                                 num_edges;
     struct { s64 ts; int value; }       edges[DHT11_EDGES_PER_READ];
 };
@@ -92,10 +91,22 @@ static int dht11_decode(struct dht11_private_data *dht11, int offset)
     }
 
     dht11->timestamp = ktime_get_boottime_ns();
-    dht11->temperature = temp_int * 1000;
-    dht11->humidity = hum_int * 1000;
+    dht11->temperature = temp_int;
+    dht11->temperature_dec = temp_dec;
+    dht11->humidity = hum_int;
+    dht11->humidity_dec = hum_dec;
 
     return 0;
+}
+
+static void dht11_edges_print(struct dht11_private_data *dht11)
+{
+    int i;
+    dev_info(dht11->dev, "%d edges detected:\n", dht11->num_edges);
+    for (i = 1; i < dht11->num_edges; i++)
+    {
+        dev_info(dht11->dev, "%d: %lld ns %s\n", i, dht11->edges[i].ts - dht11->edges[i-1].ts, dht11->edges[i-1].value ? "high": "low");
+    }
 }
 
 static irqreturn_t dht11_handle_irq(int irq, void *data)
@@ -119,7 +130,9 @@ static irqreturn_t dht11_handle_irq(int irq, void *data)
 static int dht11_read(struct device *dev, struct device_attribute *attr, char *buf)
 {
     struct dht11_private_data *dht11 = dev_get_drvdata(dev);
-    int ret, timeres, offset;
+    int ret, timeres, old_gpio_val, new_gpio_val, offset;
+    s64 timeout_start;
+
 
     mutex_lock(&dht11->lock);
     if (dht11->timestamp + DHT11_DATA_VALID_TIME < ktime_get_boottime_ns())
@@ -136,27 +149,12 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
         reinit_completion(&dht11->completion);
         dht11->num_edges = 0;
         /* Start transmission - pull line low */
-        dev_err(dht11->dev, "GPIO is active low: %d\n", gpiod_is_active_low(dht11->gpiod));
-        dev_err(dht11->dev, "have GPIO %d\n", desc_to_gpio(dht11->gpiod));
-        dev_err(dht11->dev, "current gpio direction: %d\n", gpiod_get_direction(dht11->gpiod));
-        dev_err(dht11->dev, "current gpio value: %d\n", gpiod_get_value(dht11->gpiod));
         ret = gpiod_direction_output(dht11->gpiod, 0);
         if (ret)
         {
             goto err;
         }
-        dev_err(dht11->dev, "return val: %d. new gpio direction: %d\n", ret, gpiod_get_direction(dht11->gpiod));
-        dev_err(dht11->dev, "new gpio value: %d\n", gpiod_get_value(dht11->gpiod));
-
-        dev_err(dht11->dev, "sleep start\n");
         usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
-        dev_err(dht11->dev, "sleep end\n");
-        dev_err(dht11->dev, "current gpio value: %d\n", gpiod_get_value(dht11->gpiod));
-        ret = gpiod_direction_output(dht11->gpiod, 1);
-        dev_err(dht11->dev, "return val: %d. new gpio value: %d\n", ret, gpiod_get_value(dht11->gpiod));
-        dev_err(dht11->dev, "sleep start\n");
-        usleep_range(DHT11_START_TRANSMISSION_MIN, DHT11_START_TRANSMISSION_MAX);
-        dev_err(dht11->dev, "sleep end\n");
 
         /* Start reading from DHT11 sensor via interrupts */
         ret = gpiod_direction_input(dht11->gpiod);
@@ -165,36 +163,35 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
             goto err;
         }
 
-        ret = request_irq(dht11->irq, dht11_handle_irq, 
-                            IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, 
-                            dev->init_name, dev);
-        if (ret)
+        old_gpio_val = 0;
+        new_gpio_val = 1;
+        timeout_start = ktime_get_boottime_ns();
+        while (!completion_done(&dht11->completion))
         {
-            goto err;
-        }
+            /* 1s timeout */
+            if (ktime_get_boottime_ns() - timeout_start >= DHT11_POLL_TIMEOUT)
+            {
+                ret = -ETIMEDOUT;
+                dev_info(dev, "timeout during DHT11 read polling. edges read: %d\n", dht11->num_edges);
+                goto err;
+            }
 
-        ret = wait_for_completion_killable_timeout(&dht11->completion, HZ);
-        free_irq(dht11->irq, dev);
-        if (ret == 0 && dht11->num_edges < DHT11_EDGES_PER_READ - 1)
-        {
-            dev_err(dev, "Only %d signal edges detected\n", dht11->num_edges);
-            ret = -ETIMEDOUT;
-        }
+            if (dht11->num_edges >= DHT11_EDGES_PER_READ)
+            {
+                complete(&dht11->completion);
+            }
 
-        if (ret < 0)
-        {
-            goto err;
+            new_gpio_val = gpiod_get_value(dht11->gpiod);
+            if ((new_gpio_val && !old_gpio_val) || (!new_gpio_val && old_gpio_val))
+            {
+                dht11->edges[dht11->num_edges].ts = ktime_get_boottime_ns();
+                dht11->edges[dht11->num_edges++].value = gpiod_get_value(dht11->gpiod);
+                old_gpio_val = new_gpio_val;
+            }
         }
 
         offset = DHT11_EDGES_PREAMBLE + dht11->num_edges - DHT11_EDGES_PER_READ;
-        for (;offset >= 0; offset--) 
-        {
-            ret = dht11_decode(dht11, offset);
-            if (!ret)
-            {
-                break;
-            }
-        }
+        ret = dht11_decode(dht11, offset);
     }
 
 err:
@@ -215,7 +212,7 @@ static ssize_t temperature_show(struct device *dev, struct device_attribute *att
         return -EINVAL;
     }
 
-    return sprintf(buf, "%d\n", dht11->temperature);
+    return sprintf(buf, "%d.%dC\n", dht11->temperature, dht11->temperature_dec);
 }
 
 static ssize_t humidity_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -229,7 +226,7 @@ static ssize_t humidity_show(struct device *dev, struct device_attribute *attr, 
         return -EINVAL;
     }
 
-    return sprintf(buf, "%d\n", dht11->humidity);
+    return sprintf(buf, "%d.%d%%\n", dht11->humidity, dht11->humidity_dec);
 }
 
 /****** SYSFS ATTRIBUTE DECLARATION *******/
@@ -274,12 +271,12 @@ static int dht11_sysfs_probe(struct platform_device *pdev)
         return -EINVAL;
     }
 
-    dev_set_drvdata(dev, dht11);
     dht11->dev = dev;
     init_completion(&dht11->completion);
     mutex_init(&dht11->lock);
-    dht11->timestamp = ktime_get_boottime_ns();
+    dht11->timestamp = ktime_get_boottime_ns() - DHT11_DATA_VALID_TIME - 1;
     dht11->num_edges = -1;
+    dev_set_drvdata(dev, dht11);
 
     ret = sysfs_create_group(&dev->kobj, &dht11_attr_group);
     if (ret)
