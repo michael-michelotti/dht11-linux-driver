@@ -9,7 +9,7 @@
 #include <linux/interrupt.h>
 
 
-
+#define DEBUG_LOGGING                   0
 #define DRIVER_NAME                    "dht11-mm"
 #define DHT11_DATA_VALID_TIME           2000000000  /* 2s in ns */
 #define DHT11_EDGES_PREAMBLE            3
@@ -109,24 +109,6 @@ static void dht11_edges_print(struct dht11_private_data *dht11)
     }
 }
 
-static irqreturn_t dht11_handle_irq(int irq, void *data)
-{
-    struct device *dev = (struct device *) data;
-    struct dht11_private_data *dht11 = dev_get_drvdata(dev);
-
-    if (dht11->num_edges < DHT11_EDGES_PER_READ && dht11->num_edges >= 0)
-    {
-        dht11->edges[dht11->num_edges].ts = ktime_get_boottime_ns();
-        dht11->edges[dht11->num_edges++].value = gpiod_get_value(dht11->gpiod);
-        if (dht11->num_edges >= DHT11_EDGES_PER_READ)
-        {
-            complete(&dht11->completion);
-        }
-    }
-
-    return IRQ_HANDLED;
-}
-
 static int dht11_read(struct device *dev, struct device_attribute *attr, char *buf)
 {
     struct dht11_private_data *dht11 = dev_get_drvdata(dev);
@@ -189,6 +171,10 @@ static int dht11_read(struct device *dev, struct device_attribute *attr, char *b
                 old_gpio_val = new_gpio_val;
             }
         }
+
+#ifdef DEBUG_LOGGING
+        dht11_edges_print(dht11);
+#endif
 
         offset = DHT11_EDGES_PREAMBLE + dht11->num_edges - DHT11_EDGES_PER_READ;
         ret = dht11_decode(dht11, offset);
